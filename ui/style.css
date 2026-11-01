@@ -152,7 +152,6 @@ svg .fill { fill: var(--bg); }
   color: var(--muted); opacity: .7; background: var(--bg); user-select: none; font-variant-numeric: tabular-nums;
   transition: background-color .25s ease;
 }
-.typewriter .doc:not(.code) .page { padding-top: 42vh; }
 
 /* syntax */
 .tc { color: var(--c-comment); }
