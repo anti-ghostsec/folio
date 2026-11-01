@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="tabbar">
+    <div id="tabs" role="tablist"></div>
+    <button id="newBtn" class="icon" title="New note (Ctrl+N)">
+      <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>
+    </button>
+    <div class="spacer"></div>
+    <button id="openBtn" class="icon" title="Open file (Ctrl+O)">
+      <svg viewBox="0 0 16 16"><path d="M2 4.5V12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1H8L6.5 3.5H3a1 1 0 0 0-1 1z"/></svg>
+    </button>
+    <button id="focusBtn" class="icon" title="Focus mode (Ctrl+Shift+F)">
+      <svg viewBox="0 0 16 16"><path d="M2 6V3h3M11 3h3v3M14 10v3h-3M5 13H2v-3"/></svg>
+    </button>
+    <button id="settingsBtn" class="icon" title="Appearance &amp; settings (Ctrl+,)">
+      <svg viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h10"/><circle cx="6" cy="4" r="1.6" class="fill"/><circle cx="10.5" cy="8" r="1.6" class="fill"/><circle cx="5" cy="12" r="1.6" class="fill"/></svg>
+    </button>
+  </header>
+
+  <div id="findbar" hidden>
+    <div class="findrow">
+      <div class="field">
+        <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="findInput" placeholder="Find" spellcheck="false">
+        <span id="findCount"></span>
+      </div>
+      <button id="findCase" class="toggle" title="Match case">Aa</button>
+      <button id="findRegex" class="toggle" title="Regular expression">.*</button>
+      <button id="findPrev" class="icon" title="Previous (Shift+Enter)"><svg viewBox="0 0 16 16"><path d="m4 10 4-4 4 4"/></svg></button>
+      <button id="findNext" class="icon" title="Next (Enter)"><svg viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></svg></button>
+      <button id="replaceToggle" class="text-btn" title="Replace (Ctrl+H)">Replace</button>
+      <button id="findClose" class="icon" title="Close (Esc)"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
+    </div>
+    <div class="findrow" id="replaceRow" hidden>
+      <div class="field">
+        <svg viewBox="0 0 16 16"><path d="M3 6h8l-2.5-2.5M13 10H5l2.5 2.5"/></svg>
+        <input id="replaceInput" placeholder="Replace with" spellcheck="false">
+      </div>
+      <button id="replaceOne" class="text-btn">Replace</button>
+      <button id="replaceAll" class="text-btn">All</button>
+    </div>
+  </div>
+
+  <main id="docs"></main>
+
+  <footer id="status">
+    <button id="langBtn" class="status-btn" title="Change language"></button>
+    <span id="stWords"></span>
+    <span class="spacer"></span>
+    <span id="stPos"></span>
+    <span id="stEol"></span>
+    <span id="stSaved"></span>
+  </footer>
+</div>
+
+<div id="langMenu" class="menu" hidden></div>
+
+<aside id="settings" class="panel" hidden>
+  <section>
+    <h3>Theme</h3>
+    <div class="swatches" id="themeSwatches">
+      <button data-theme="paper"  title="Paper"><span></span>Paper</button>
+      <button data-theme="sepia"  title="Sepia"><span></span>Sepia</button>
+      <button data-theme="night"  title="Night"><span></span>Night</button>
+      <button data-theme="ink"    title="Ink"><span></span>Ink</button>
+    </div>
+  </section>
+  <section>
+    <h3>Writing font</h3>
+    <div class="segmented" id="fontSeg">
+      <button data-font="serif"><b class="f-serif">Aa</b>Serif</button>
+      <button data-font="sans"><b class="f-sans">Aa</b>Sans</button>
+      <button data-font="mono"><b class="f-mono">Aa</b>Mono</button>
+    </div>
+  </section>
+  <section class="sliders">
+    <label>Text size <output id="sizeOut"></output><input type="range" id="sizeIn" min="13" max="30" step="1"></label>
+    <label>Line width <output id="measureOut"></output><input type="range" id="measureIn" min="40" max="120" step="2"></label>
+    <label>Line spacing <output id="lhOut"></output><input type="range" id="lhIn" min="1.3" max="2.2" step="0.05"></label>
+    <label>Code size <output id="codeSizeOut"></output><input type="range" id="codeSizeIn" min="11" max="22" step="1"></label>
+  </section>
+  <section class="switches">
+    <label><span>Spell check</span><input type="checkbox" id="optSpell"><i></i></label>
+    <label><span>Typewriter scrolling</span><input type="checkbox" id="optTypewriter"><i></i></label>
+    <label><span>Fade toolbars while typing</span><input type="checkbox" id="optFade"><i></i></label>
+    <label><span>Autosave files</span><input type="checkbox" id="optAutosave"><i></i></label>
+    <label><span>Wrap long code lines</span><input type="checkbox" id="optWrapCode"><i></i></label>
+    <label><span>Line numbers in code</span><input type="checkbox" id="optLineNumbers"><i></i></label>
+    <label><span>Indent with spaces</span><input type="checkbox" id="optSpaces"><i></i></label>
+    <label><span>Tab width</span><select id="optTab"><option>2</option><option>4</option><option>8</option></select></label>
+  </section>
+  <footer><button id="shortcutsBtn" class="text-btn">Keyboard shortcuts</button></footer>
+</aside>
+
+<div id="modal" hidden>
+  <div class="card" role="dialog" aria-modal="true">
+    <h2 id="modalTitle"></h2>
+    <p id="modalText"></p>
+    <div id="modalButtons"></div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script src="highlight.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
