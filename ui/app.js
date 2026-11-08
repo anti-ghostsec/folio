@@ -10,6 +10,11 @@ const DEFAULTS = {
   useSpaces: true, tabSize: 4,
 };
 const BIG = 400000;   // characters; above this we skip syntax colouring
+// Above this, a keystroke shows the text at once without colours and the
+// colours follow once typing pauses: colouring the whole document on every
+// key (and laying it out again) is what made long documents lag.
+const QUICK = 30000;
+const COLOUR_AFTER = 250; // ms of no typing
 
 const S = { tabs: [], active: null, settings: { ...DEFAULTS }, nextId: 1, home: '' };
 const F = { open: false, cs: false, re: false, matches: [], cur: -1 };
@@ -231,16 +236,22 @@ function applyMode(t) {
   t.lines = -1;
 }
 
-function render(t) {
+function render(t, plain = false) {
   const text = t.ta.value;
   const f = F.open && S.active === t;
-  try {
-    const tokens = text.length > BIG ? [['', text]] : HL.tokenize(text, t.lang);
-    t.pre.innerHTML = HL.render(tokens, f ? F.matches : null, f ? F.cur : -1) + ' ';
-  } catch (err) {
-    // The textarea text is transparent, so never leave the visible layer blank.
+  clearTimeout(t.colourTimer);
+  if (plain) {
+    // The same text, so the same layout: the caret and selection stay put.
     t.pre.textContent = text + ' ';
-    reportError(err);
+  } else {
+    try {
+      const tokens = text.length > BIG ? [['', text]] : HL.tokenize(text, t.lang);
+      t.pre.innerHTML = HL.render(tokens, f ? F.matches : null, f ? F.cur : -1) + ' ';
+    } catch (err) {
+      // The textarea text is transparent, so never leave the visible layer blank.
+      t.pre.textContent = text + ' ';
+      reportError(err);
+    }
   }
   if (t.el.classList.contains('numbers')) {
     let n = 1;
@@ -302,7 +313,12 @@ const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Pa
 function bindDoc(t) {
   const ta = t.ta;
   ta.addEventListener('input', () => {
-    render(t);
+    if (ta.value.length > QUICK) {
+      render(t, true);
+      t.colourTimer = setTimeout(() => render(t), COLOUR_AFTER);
+    } else {
+      render(t);
+    }
     onChange(t);
     requestAnimationFrame(() => revealCaret(t));
     if (S.settings.fade) document.body.classList.add('typing');
