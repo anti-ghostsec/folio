@@ -17,6 +17,9 @@
     <button id="openBtn" class="icon" title="Open file (Ctrl+O)">
       <svg viewBox="0 0 16 16"><path d="M2 4.5V12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1H8L6.5 3.5H3a1 1 0 0 0-1 1z"/></svg>
     </button>
+    <button id="previewBtn" class="icon" title="Preview Markdown (Ctrl+Shift+M)" hidden>
+      <svg viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>
+    </button>
     <button id="focusBtn" class="icon" title="Focus mode (Ctrl+Shift+F)">
       <svg viewBox="0 0 16 16"><path d="M2 6V3h3M11 3h3v3M14 10v3h-3M5 13H2v-3"/></svg>
     </button>
@@ -111,6 +114,7 @@
 <div id="toast" role="status"></div>
 
 <script src="highlight.js"></script>
+<script src="markdown.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

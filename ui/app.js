@@ -128,11 +128,12 @@ function createTab({ path = null, content = '', eol = '\n', encoding = 'utf-8', 
   const el = document.createElement('section');
   el.className = 'doc';
   el.hidden = true;
-  el.innerHTML = `<div class="scroller"><div class="page"><div class="gutter" aria-hidden="true"></div><div class="stack"><pre class="hl" aria-hidden="true"></pre><textarea autocomplete="off" autocapitalize="off"></textarea></div></div></div>`;
+  el.innerHTML = `<div class="scroller"><div class="page"><div class="gutter" aria-hidden="true"></div><div class="stack"><pre class="hl" aria-hidden="true"></pre><textarea autocomplete="off" autocapitalize="off"></textarea></div><article class="mdview" hidden></article></div></div>`;
   const t = {
     id: S.nextId++, path, saved: path ? content : '', eol, encoding, mtime,
     lang: lang || HL.detect(path), el,
     scroller: $('.scroller', el), page: $('.page', el), gutter: $('.gutter', el), pre: $('pre', el), ta: $('textarea', el),
+    md: $('.mdview', el), previewing: false,
     lines: -1, label: '', wasDirty: false,
   };
   t.ta.value = content;
@@ -152,6 +153,7 @@ function activateTab(t) {
   renderTabs();
   updateTitle();
   updateStatus();
+  updatePreviewBtn();
   if (F.open) computeMatches(false);
   render(t);
   if (!$('#modal').hidden) return;
@@ -234,6 +236,30 @@ function applyMode(t) {
   t.ta.spellcheck = !code && S.settings.spellcheck;
   t.ta.placeholder = code ? '' : 'Start writing…';
   t.lines = -1;
+  if (t.previewing && t.lang !== 'markdown') setPreview(t, false);
+  if (t === S.active) updatePreviewBtn();
+}
+
+/* ============================== markdown preview ============================== */
+
+// The document as it reads, for Markdown: read-only, in the page's own
+// font and width. Editing again: the same button, Ctrl+Shift+M, or Esc.
+function setPreview(t, on) {
+  if (!t) return;
+  on = on && t.lang === 'markdown';
+  t.previewing = on;
+  if (on) t.md.innerHTML = MD.render(t.ta.value);
+  t.md.hidden = !on;
+  $('.stack', t.el).hidden = on;
+  t.el.classList.toggle('previewing', on);
+  if (t === S.active) updatePreviewBtn();
+  if (!on) t.ta.focus({ preventScroll: true });
+}
+
+function updatePreviewBtn() {
+  const t = S.active, b = $('#previewBtn');
+  b.hidden = !t || t.lang !== 'markdown';
+  b.classList.toggle('on', !!t && t.previewing);
 }
 
 function render(t, plain = false) {
@@ -896,6 +922,7 @@ function onGlobalKey(e) {
   if (mod && !e.shiftKey && k === 'f') return go(() => openFind(false));
   if (mod && !e.shiftKey && k === 'h') return go(() => openFind(true));
   if (mod && e.shiftKey && k === 'f') return go(toggleFocus);
+  if (mod && e.shiftKey && k === 'm' && t && t.lang === 'markdown') return go(() => setPreview(t, !t.previewing));
   if (mod && k === ',') return go(() => toggleSettings());
   if (mod && (k === '=' || k === '+')) return go(() => zoom(1));
   if (mod && k === '-') return go(() => zoom(-1));
@@ -915,6 +942,7 @@ function onGlobalKey(e) {
     if (!$('#settings').hidden) return go(() => { toggleSettings(false); t.ta.focus(); });
     if (F.open) return go(closeFind);
     if (document.body.classList.contains('focus')) return go(toggleFocus);
+    if (t && t.previewing) return go(() => setPreview(t, false));
   }
 }
 
@@ -923,6 +951,7 @@ function bindChrome() {
   $('#newBtn').onclick = () => createTab();
   $('#openBtn').onclick = openDialog;
   $('#focusBtn').onclick = toggleFocus;
+  $('#previewBtn').onclick = () => setPreview(S.active, !(S.active && S.active.previewing));
   $('#settingsBtn').onclick = e => { e.stopPropagation(); toggleSettings(); };
   $('#shortcutsBtn').onclick = showShortcuts;
   $('#langBtn').onclick = e => { e.stopPropagation(); showLangMenu(); };

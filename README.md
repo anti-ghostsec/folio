@@ -13,6 +13,7 @@ chrome out of your way, and forgets everything when you close it.
 - Four themes: Night (default), Ink, Paper, Sepia
 - Spell check, live word count and reading time
 - Markdown highlighting; lists and quotes continue on Enter
+- Markdown preview (the eye button, Ctrl+Shift+M): the document formatted, read-only. Nothing in the file is run, and pictures aren't fetched (a picture shows as its description), so reading a document never tells a server so; links open in your browser
 - Focus mode, typewriter scrolling, toolbars that fade while you type
 
 **Code**
@@ -82,6 +83,7 @@ To add Folio to your app menu (and the "Open with" list):
 | Find / Replace | Ctrl+F / Ctrl+H |
 | Text size | Ctrl+= / Ctrl+− / Ctrl+0 |
 | Focus mode / Full screen | Ctrl+Shift+F / F11 |
+| Markdown preview / back to editing | Ctrl+Shift+M / Esc |
 | Settings | Ctrl+, |
 
 ## License

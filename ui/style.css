@@ -282,3 +282,24 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 
 @keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
 @keyframes fade { from { opacity: 0; } }
+
+/* ============================== markdown preview ============================== */
+.mdview { cursor: auto; user-select: text; overflow-wrap: break-word; }
+.doc.previewing .scroller { cursor: auto; }
+.mdview > :first-child { margin-top: 0; }
+.mdview h1, .mdview h2, .mdview h3, .mdview h4, .mdview h5, .mdview h6 { line-height: 1.25; margin: 1.6em 0 .6em; font-weight: 650; }
+.mdview h1 { font-size: 1.9em; } .mdview h2 { font-size: 1.5em; border-bottom: 1px solid var(--line); padding-bottom: .2em; }
+.mdview h3 { font-size: 1.25em; } .mdview h4 { font-size: 1.1em; } .mdview h5, .mdview h6 { font-size: 1em; color: var(--fg-2); }
+.mdview p, .mdview ul, .mdview ol, .mdview blockquote, .mdview pre, .mdview table { margin: 0 0 1em; }
+.mdview a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.mdview code { font-family: var(--mono); font-size: .88em; background: var(--bg-2); padding: .1em .35em; border-radius: 4px; }
+.mdview pre.md-code { background: var(--bg-2); padding: 12px 14px; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+.mdview pre.md-code code { background: none; padding: 0; font-size: .85em; }
+.mdview blockquote { border-left: 3px solid var(--accent-soft); padding: 0 0 0 1em; color: var(--fg-2); }
+.mdview ul, .mdview ol { padding-left: 1.6em; }
+.mdview li.task { list-style: none; margin-left: -1.3em; }
+.mdview hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+.mdview table { border-collapse: collapse; }
+.mdview th, .mdview td { border: 1px solid var(--line); padding: .35em .7em; }
+.mdview th { background: var(--bg-2); }
+.mdview .md-img { color: var(--muted); font-style: italic; }
