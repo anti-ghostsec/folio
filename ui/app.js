@@ -222,6 +222,14 @@ function updateTitle() {
   if (!t) return;
   call('setTitle', { title: displayName(t), subtitle: t.path ? prettyDir(t.path) : '', dirty: !!t.path && isDirty(t) });
   document.title = displayName(t) + ' — Folio';
+  updateSaveBtn();
+}
+
+// Lit while there's something to save (a new note with text in it, or a
+// file with changes).
+function updateSaveBtn() {
+  const t = S.active;
+  $('#saveBtn').classList.toggle('on', !!t && needsSave(t));
 }
 
 /* ============================== rendering ============================== */
@@ -370,6 +378,7 @@ function onChange(t) {
   const dirty = !!t.path && isDirty(t);
   if (dirty !== t.wasDirty || displayName(t) !== t.label) { renderTabs(); updateTitle(); }
   updateStatusSoon();
+  updateSaveBtn();
   if (F.open) computeMatches(false);
   if (S.settings.autosave && t.path && dirty) autosaveSoon(t);
 }
@@ -951,6 +960,7 @@ function bindChrome() {
   $('#newBtn').onclick = () => createTab();
   $('#openBtn').onclick = openDialog;
   $('#focusBtn').onclick = toggleFocus;
+  $('#saveBtn').onclick = () => S.active && saveTab(S.active);
   $('#previewBtn').onclick = () => setPreview(S.active, !(S.active && S.active.previewing));
   $('#settingsBtn').onclick = e => { e.stopPropagation(); toggleSettings(); };
   $('#shortcutsBtn').onclick = showShortcuts;

@@ -22,6 +22,7 @@ chrome out of your way, and forgets everything when you close it.
 - Toggle comment (Ctrl+/), move line (Alt+↑/↓), duplicate line (Ctrl+Shift+D)
 
 **General**
+- A Save button (Ctrl+S) that lights up while there's something to save
 - Tabs (drag to reorder), find & replace with regex, drag files onto the window to open
 - Keeps CRLF line endings and the file's encoding when saving; atomic saves
 - Reloads files changed on disk if you haven't edited them
