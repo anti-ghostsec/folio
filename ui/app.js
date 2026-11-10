@@ -40,6 +40,7 @@ window.folio = {
   resolve(id, data) { const r = pending.get(id); pending.delete(id); if (r) r(data); },
   requestClose: () => requestClose(),
   openFiles: files => files.forEach(f => openFileData(f)),
+  dropHint: show => { dropHint().hidden = !show; },
 };
 
 // Browser-only fallback so the UI can be previewed without the GTK host.
@@ -49,7 +50,7 @@ function mock(cmd, args) {
     case 'init': return { settings: ls('folio.settings'), files: [], home: '/home/you' };
     case 'saveSettings': try { localStorage.setItem('folio.settings', JSON.stringify(args.settings)); } catch {} return true;
     case 'save': return { mtime: Date.now() };
-    case 'saveAs': return { path: '/home/you/' + args.name, name: args.name, mtime: Date.now() };
+    case 'saveAs': return { doc: 'preview', path: '/home/you/' + args.name, name: args.name, mtime: Date.now() };
     case 'stat': return {};
     default: return null;
   }
@@ -62,6 +63,10 @@ const prettyDir = p => { const d = p.slice(0, p.lastIndexOf('/')) || '/'; return
 const isCode = t => HL.isCode(t.lang);
 const isDirty = t => t.ta.value !== t.saved;
 const needsSave = t => t.path ? isDirty(t) : t.ta.value.trim() !== '';
+const dropHint = () => $('#dropHint') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dropHint', textContent: 'Drop to open', hidden: true }));
+// A file is known to the host by the token it gave us (t.doc); t.path is
+// only for showing. Hand the token back once no tab uses it.
+const forgetDoc = doc => { if (doc && !S.tabs.some(t => t.doc === doc)) call('close', { doc }); };
 
 function displayName(t) {
   if (t.path) return basename(t.path);
@@ -124,13 +129,13 @@ function modal({ title, text = '', html = null, buttons }) {
 
 /* ============================== tabs ============================== */
 
-function createTab({ path = null, content = '', eol = '\n', encoding = 'utf-8', mtime = null, lang = null } = {}, activate = true) {
+function createTab({ doc = null, path = null, content = '', eol = '\n', encoding = 'utf-8', mtime = null, lang = null } = {}, activate = true) {
   const el = document.createElement('section');
   el.className = 'doc';
   el.hidden = true;
   el.innerHTML = `<div class="scroller"><div class="page"><div class="gutter" aria-hidden="true"></div><div class="stack"><pre class="hl" aria-hidden="true"></pre><textarea autocomplete="off" autocapitalize="off"></textarea></div><article class="mdview" hidden></article></div></div>`;
   const t = {
-    id: S.nextId++, path, saved: path ? content : '', eol, encoding, mtime,
+    id: S.nextId++, doc, path, saved: path ? content : '', eol, encoding, mtime,
     lang: lang || HL.detect(path), el,
     scroller: $('.scroller', el), page: $('.page', el), gutter: $('.gutter', el), pre: $('pre', el), ta: $('textarea', el),
     md: $('.mdview', el), previewing: false,
@@ -179,6 +184,7 @@ async function closeTab(t) {
   const i = S.tabs.indexOf(t);
   S.tabs.splice(i, 1);
   t.el.remove();
+  forgetDoc(t.doc);
   if (!S.tabs.length) createTab();
   else if (S.active === t) activateTab(S.tabs[Math.min(i, S.tabs.length - 1)]);
   else renderTabs();
@@ -549,7 +555,7 @@ function openFileData(f) {
   if (!f) return;
   if (f.error) { toast(f.error); return; }
   const existing = S.tabs.find(t => t.path === f.path);
-  if (existing) { activateTab(existing); return; }
+  if (existing) { forgetDoc(f.doc); activateTab(existing); return; }
   // Replace a lone empty untitled tab rather than piling up tabs.
   const blank = S.tabs.length === 1 && !S.tabs[0].path && !S.tabs[0].ta.value ? S.tabs[0] : null;
   const t = createTab(f);
@@ -558,7 +564,8 @@ function openFileData(f) {
 }
 
 async function openDialog() {
-  const files = await call('open', { dir: S.active && S.active.path ? S.active.path.slice(0, S.active.path.lastIndexOf('/')) : null });
+  // The dialog starts in the folder of the document in front.
+  const files = await call('open', { doc: S.active ? S.active.doc : null });
   if (files) files.forEach(openFileData);
 }
 
@@ -566,15 +573,18 @@ async function saveTab(t, as = false, quiet = false) {
   const content = t.ta.value;
   let r;
   if (!t.path || as) {
-    r = await call('saveAs', { content, name: suggestName(t), path: t.path, eol: t.eol, encoding: t.encoding });
+    r = await call('saveAs', { content, name: suggestName(t), doc: t.doc, eol: t.eol, encoding: t.encoding });
     if (!r) return false;
     if (r.error) { toast(r.error); return false; }
     const wasText = !isCode(t);
+    const old = t.doc;
+    t.doc = r.doc;
     t.path = r.path;
+    if (old !== t.doc) forgetDoc(old);
     const detected = HL.detect(r.path);
     if (detected !== 'text' || wasText) { t.lang = detected; applyMode(t); }
   } else {
-    r = await call('save', { path: t.path, content, eol: t.eol, encoding: t.encoding });
+    r = await call('save', { doc: t.doc, content, eol: t.eol, encoding: t.encoding });
     if (!r || r.error) { toast(r ? r.error : 'Could not save'); return false; }
   }
   t.mtime = r.mtime;
@@ -588,14 +598,14 @@ async function saveTab(t, as = false, quiet = false) {
 }
 
 async function checkDiskChanges() {
-  const tabs = S.tabs.filter(t => t.path);
+  const tabs = S.tabs.filter(t => t.doc);
   if (!tabs.length || !native) return;
-  const stats = await call('stat', { paths: tabs.map(t => t.path) });
+  const stats = await call('stat', { docs: tabs.map(t => t.doc) }) || {};
   for (const t of tabs) {
-    const m = stats[t.path];
+    const m = stats[t.doc];
     if (m == null || t.mtime == null || m === t.mtime || isDirty(t)) continue;
-    const [f] = await call('read', { paths: [t.path] });
-    if (!f || f.error) continue;
+    const f = await call('reload', { doc: t.doc });
+    if (!f || f.error || !S.tabs.includes(t) || isDirty(t)) continue;
     const sel = [t.ta.selectionStart, t.ta.selectionEnd], top = t.scroller.scrollTop;
     t.ta.value = f.content;
     t.saved = f.content;
@@ -977,24 +987,19 @@ function bindChrome() {
     if (S.settings.autosave) S.tabs.filter(t => t.path && isDirty(t)).forEach(t => saveTab(t, false, true));
     });
 
-  // Drop files from the file manager to open them.
+  // Files dropped from the file manager are opened by the host, which takes
+  // the drop before this page sees it. A drop that does reach the page (the
+  // browser preview) can only be read, so it opens as a new note.
   let dragDepth = 0;
-  const hint = () => $('#dropHint') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dropHint', textContent: 'Drop to open' }));
   const isFiles = e => e.dataTransfer && [...e.dataTransfer.types].some(x => x === 'Files' || x === 'text/uri-list');
-  document.addEventListener('dragenter', e => { if (isFiles(e)) { dragDepth++; hint().hidden = false; } });
-  document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; hint().hidden = true; } });
+  document.addEventListener('dragenter', e => { if (isFiles(e)) { dragDepth++; dropHint().hidden = false; } });
+  document.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; dropHint().hidden = true; } });
   document.addEventListener('dragover', e => { if (isFiles(e)) e.preventDefault(); });
   document.addEventListener('drop', async e => {
-    dragDepth = 0; hint().hidden = true;
+    dragDepth = 0; dropHint().hidden = true;
     if (!isFiles(e)) return;
     e.preventDefault();
-    const uris = (e.dataTransfer.getData('text/uri-list') || '').split(/\r?\n/).filter(u => u.startsWith('file://'));
-    if (uris.length && native) {
-      const files = await call('read', { paths: uris.map(u => decodeURIComponent(new URL(u).pathname)) });
-      files.forEach(openFileData);
-    } else {
-      for (const f of e.dataTransfer.files) createTab({ content: await f.text(), lang: HL.detect(f.name) });
-    }
+    for (const f of e.dataTransfer.files) createTab({ content: await f.text(), lang: HL.detect(f.name) });
   });
 }
 

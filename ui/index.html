@@ -2,6 +2,8 @@
 <html lang="en" data-theme="night">
 <head>
 <meta charset="utf-8">
+<!-- Only Folio's own scripts, styles and fonts load here: nothing inline, nothing from a network. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Folio</title>
 <link rel="stylesheet" href="style.css">

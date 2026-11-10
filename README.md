@@ -37,6 +37,11 @@ The only thing Folio writes on its own is `~/.config/folio/settings.json` (theme
 - Opened and saved files are not added to the desktop's "Recent files" list.
 - No network access, telemetry or update checks.
 
+The editor page can't reach into your files on its own. It only gets a file you opened yourself (from the
+command line or "Open with", the Open dialog, or by dropping it on the window), and Save As writes where the
+Save dialog says, nowhere else. The page also loads nothing but Folio's own scripts, styles and fonts: a
+content security policy rules out inline code and anything from a network.
+
 ## Requirements
 
 - Python 3.10+
@@ -73,6 +78,12 @@ To add Folio to your app menu (and the "Open with" list):
 ```
 
 `./install.sh --uninstall` removes it again.
+
+To run the tests (they need nothing but Python):
+
+```bash
+python3 -m unittest discover -s tests
+```
 
 ## Keyboard shortcuts
 

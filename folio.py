@@ -6,6 +6,7 @@ Usage: folio.py [FILE ...]
 """
 import json
 import os
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -124,6 +125,60 @@ def write_file(path, content, eol='\n', encoding='utf-8'):
         return {'error': f'Could not save {os.path.basename(path)}: {e.strerror}'}
 
 
+class Documents:
+    """The files the page may read and write, by token.
+
+    The page never names a path. A file gets a token when it is opened by a
+    route the page has no say in (the command line or "Open with", a file
+    dialog, a drop from the file manager), and the page asks for "the document
+    with this token" from then on. Kept in memory only.
+    """
+
+    def __init__(self):
+        self.paths = {}
+
+    def add(self, path):
+        token = secrets.token_urlsafe(16)
+        self.paths[token] = os.path.abspath(path)
+        return token
+
+    def path(self, token):
+        """The path behind a token, or None if the page made it up."""
+        return self.paths.get(token) if isinstance(token, str) else None
+
+    def forget(self, token):
+        if isinstance(token, str):
+            self.paths.pop(token, None)
+
+    def open(self, path):
+        """Read a file for the page; it gets a token only if it could be read."""
+        f = read_file(path)
+        if 'error' not in f:
+            f['doc'] = self.add(f['path'])
+        return f
+
+
+def clean_settings(settings):
+    """What the page may store: plain named values, nothing nested or huge."""
+    if not isinstance(settings, dict):
+        return {}
+    out = {}
+    for k, v in list(settings.items())[:64]:
+        if not isinstance(k, str) or not k or k.startswith('_') or len(k) > 40:
+            continue
+        if isinstance(v, (bool, int, float)) or (isinstance(v, str) and len(v) <= 200):
+            out[k] = v
+    return out
+
+
+def css_colour(value, fallback):
+    """A colour from the page, as GTK writes it; anything else gives the fallback."""
+    color = Gdk.RGBA()
+    if isinstance(value, str) and color.parse(value):
+        return color.to_string()
+    return fallback
+
+
 class FolioWindow(Gtk.ApplicationWindow):
     def __init__(self, app, files):
         super().__init__(application=app, title='Folio')
@@ -131,6 +186,7 @@ class FolioWindow(Gtk.ApplicationWindow):
         self.ready = False
         self.allow_close = False
         self.pending_files = list(files)
+        self.docs = Documents()
         self.settings = load_json(SETTINGS_FILE, {})
 
         state = self.settings.get('_window', {})
@@ -166,6 +222,7 @@ class FolioWindow(Gtk.ApplicationWindow):
         self.web.connect('context-menu', self.on_context_menu)
         self.web.connect('web-process-terminated', lambda *a: self.web.reload())
         self.setup_spellcheck()
+        self.setup_drop()
         self.web.load_uri(UI_INDEX.as_uri())
         self.set_child(self.web)
 
@@ -182,8 +239,35 @@ class FolioWindow(Gtk.ApplicationWindow):
         except Exception:
             pass
 
+    def setup_drop(self):
+        # Files dropped from the file manager are taken here, before the page
+        # sees them: the page is never the one to say which path to open.
+        drop = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
+        drop.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        drop.connect('enter', self.on_drop_enter)
+        drop.connect('leave', lambda t: self.drop_hint(False))
+        drop.connect('drop', self.on_drop)
+        self.web.add_controller(drop)
+
+    def drop_hint(self, show):
+        if self.ready:
+            self.js(f'folio.dropHint({json.dumps(bool(show))})')
+
+    def on_drop_enter(self, target, x, y):
+        self.drop_hint(True)
+        return Gdk.DragAction.COPY
+
+    def on_drop(self, target, value, x, y):
+        self.drop_hint(False)
+        paths = [f.get_path() for f in value.get_files() if f.get_path()]
+        if not paths:
+            return False
+        self.open_files(paths)
+        return True
+
     def apply_theme(self, t):
-        bg, fg = t.get('bg'), t.get('fg')
+        bg = css_colour(t.get('bg'), THEME_BG['night'])
+        fg = css_colour(t.get('fg'), '#dcd8cf')
         self.css.load_from_string(f"window, window.background {{ background: {bg}; color: {fg}; }}")
         dark = bool(t.get('dark'))
         if dark != self.dark:  # flipping this restyles all of GTK, so only do it when it changes
@@ -236,7 +320,11 @@ class FolioWindow(Gtk.ApplicationWindow):
             msg = json.loads(value.to_string())
         except (ValueError, TypeError):
             return
-        cmd, args, cid = msg.get('cmd'), msg.get('args') or {}, msg.get('id')
+        if not isinstance(msg, dict) or not isinstance(msg.get('id'), int):
+            return
+        cmd, args, cid = msg.get('cmd'), msg.get('args'), msg.get('id')
+        if not isinstance(args, dict):
+            args = {}
         handler = getattr(self, 'cmd_' + str(cmd), None)
         if handler is None:
             self.reply(cid, None)
@@ -252,26 +340,43 @@ class FolioWindow(Gtk.ApplicationWindow):
 
     # Commands return a value, or NotImplemented when they will call done() later.
 
+    # The page names documents by the token it was given, never by path.
+
     def cmd_init(self, args, done):
         self.ready = True
-        files = [read_file(p) for p in self.pending_files]
+        self.docs = Documents()  # a page that starts over holds no tokens
+        files = [self.docs.open(p) for p in self.pending_files]
         self.pending_files = []
         settings = {k: v for k, v in self.settings.items() if not k.startswith('_')}
         return {'settings': settings, 'files': files, 'home': str(Path.home())}
 
-    def cmd_read(self, args, done):
-        return [read_file(p) for p in args.get('paths', [])]
+    def cmd_reload(self, args, done):
+        path = self.docs.path(args.get('doc'))
+        if path is None:
+            return {'error': 'That document isn\'t open'}
+        return read_file(path)
 
     def cmd_stat(self, args, done):
-        return {p: mtime(p) for p in args.get('paths', [])}
+        docs = args.get('docs')
+        docs = docs if isinstance(docs, list) else []
+        return {d: mtime(self.docs.path(d)) for d in docs if self.docs.path(d) is not None}
 
     def cmd_save(self, args, done):
-        return write_file(args['path'], args.get('content', ''), args.get('eol', '\n'), args.get('encoding', 'utf-8'))
+        path = self.docs.path(args.get('doc'))
+        if path is None:
+            return {'error': 'Could not save: that document isn\'t open'}
+        return write_file(path, *self.text_args(args))
 
     def cmd_saveAs(self, args, done):
+        # Where it goes is the user's answer to this dialog and nothing else;
+        # the page only suggests a file name.
+        content, eol, encoding = self.text_args(args)
         dialog = Gtk.FileDialog(title='Save As', modal=True)
-        dialog.set_initial_name(args.get('name') or 'Untitled.txt')
-        folder = os.path.dirname(args['path']) if args.get('path') else str(Path.home() / 'Documents')
+        name = args.get('name')
+        name = os.path.basename(name) if isinstance(name, str) else ''
+        dialog.set_initial_name(name or 'Untitled.txt')
+        current = self.docs.path(args.get('doc'))
+        folder = os.path.dirname(current) if current else str(Path.home() / 'Documents')
         if not os.path.isdir(folder):
             folder = str(Path.home())
         dialog.set_initial_folder(Gio.File.new_for_path(folder))
@@ -282,14 +387,32 @@ class FolioWindow(Gtk.ApplicationWindow):
             except GLib.Error:
                 done(None)
                 return
-            done(write_file(f.get_path(), args.get('content', ''), args.get('eol', '\n'), args.get('encoding', 'utf-8')))
+            done(self.save_as(f.get_path(), content, eol, encoding))
 
         dialog.save(self, None, finished)
         return NotImplemented
 
+    def save_as(self, path, content, eol, encoding):
+        """Write to the path a Save As dialog gave, and hand the page a token for it."""
+        if not path:
+            return {'error': 'Could not save there'}
+        r = write_file(path, content, eol, encoding)
+        if 'error' not in r:
+            r['doc'] = self.docs.add(r['path'])
+        return r
+
+    @staticmethod
+    def text_args(args):
+        content = args.get('content', '')
+        eol = '\r\n' if args.get('eol') == '\r\n' else '\n'
+        encoding = args.get('encoding', 'utf-8')
+        return (content if isinstance(content, str) else '', eol,
+                encoding if isinstance(encoding, str) else 'utf-8')
+
     def cmd_open(self, args, done):
         dialog = Gtk.FileDialog(title='Open', modal=True)
-        folder = args.get('dir') or str(Path.home())
+        current = self.docs.path(args.get('doc'))
+        folder = os.path.dirname(current) if current else str(Path.home())
         if os.path.isdir(folder):
             dialog.set_initial_folder(Gio.File.new_for_path(folder))
 
@@ -299,28 +422,34 @@ class FolioWindow(Gtk.ApplicationWindow):
             except GLib.Error:
                 done(None)
                 return
-            done([read_file(files.get_item(i).get_path()) for i in range(files.get_n_items())])
+            paths = [files.get_item(i).get_path() for i in range(files.get_n_items())]
+            done([self.docs.open(p) for p in paths if p])
 
         dialog.open_multiple(self, None, finished)
         return NotImplemented
 
+    def cmd_close(self, args, done):
+        # The tab is gone, and with it the page's way to reach the file.
+        self.docs.forget(args.get('doc'))
+        return True
+
     def cmd_setTitle(self, args, done):
-        title = args.get('title') or 'Folio'
+        title = str(args.get('title') or 'Folio')[:200]
         dirty = '• ' if args.get('dirty') else ''
-        sub = args.get('subtitle') or ''
+        sub = str(args.get('subtitle') or '')[:400]
         self.set_title(f'{dirty}{title}' + (f' ({sub})' if sub else '') + ' — Folio')
         return True
 
     def cmd_setTheme(self, args, done):
         self.apply_theme(args)
         color = Gdk.RGBA()
-        if color.parse(args.get('bg', '#ffffff')):
+        if isinstance(args.get('bg'), str) and color.parse(args['bg']):
             self.web.set_background_color(color)
         return True
 
     def cmd_saveSettings(self, args, done):
         window = self.settings.get('_window')
-        self.settings = dict(args.get('settings') or {})
+        self.settings = clean_settings(args.get('settings'))
         if window:
             self.settings['_window'] = window
         save_json(SETTINGS_FILE, self.settings)
@@ -342,7 +471,7 @@ class FolioWindow(Gtk.ApplicationWindow):
 
     def open_files(self, paths):
         if self.ready:
-            self.js(f'folio.openFiles({json.dumps([read_file(p) for p in paths])})')
+            self.js(f'folio.openFiles({json.dumps([self.docs.open(p) for p in paths])})')
         else:
             self.pending_files.extend(paths)
         self.present()

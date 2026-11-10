@@ -18,14 +18,21 @@ concurrency:
 
 jobs:
   linux:
+    # The signing key is only ever used on main: a run started by hand from
+    # another branch is skipped. The key belongs in the "release"
+    # environment, limited to main in the repository settings.
+    if: github.ref == 'refs/heads/main'
+    environment: release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a commit (v4.4.0), so a moved tag can't change what runs here.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       # Folio is Python and a web page: it's checked, then packed as it is.
       - name: Check and pack
         run: |
           python3 -m py_compile folio.py
+          python3 -m unittest discover -s tests
           [ -f ui/index.html ] || { echo "ui/index.html is missing" >&2; exit 1; }
           rm -rf dist && mkdir -p dist/folio
           cp -r folio.py ui icons LICENSE README.md dist/folio/

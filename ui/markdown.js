@@ -104,7 +104,7 @@ const MD = (() => {
       if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
         flush();
         const align = cells(lines[i + 1]).map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : ''));
-        const row = (l, tag) => '<tr>' + cells(l).map((c, k) => `<${tag}${align[k] ? ` style="text-align:${align[k]}"` : ''}>${inline(c)}</${tag}>`).join('') + '</tr>';
+        const row = (l, tag) => '<tr>' + cells(l).map((c, k) => `<${tag}${align[k] ? ` class="al-${align[k]}"` : ''}>${inline(c)}</${tag}>`).join('') + '</tr>';
         let t = `<table><thead>${row(line, 'th')}</thead><tbody>`;
         i += 2;
         while (i < lines.length && lines[i].includes('|') && !/^\s*$/.test(lines[i])) t += row(lines[i++], 'td');

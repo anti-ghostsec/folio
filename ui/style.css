@@ -302,4 +302,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .mdview table { border-collapse: collapse; }
 .mdview th, .mdview td { border: 1px solid var(--line); padding: .35em .7em; }
 .mdview th { background: var(--bg-2); }
+.mdview .al-left { text-align: left; }
+.mdview .al-center { text-align: center; }
+.mdview .al-right { text-align: right; }
 .mdview .md-img { color: var(--muted); font-style: italic; }
