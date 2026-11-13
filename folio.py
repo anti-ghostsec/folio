@@ -278,16 +278,33 @@ class FolioWindow(Gtk.ApplicationWindow):
 
     def on_decide_policy(self, view, decision, kind):
         if kind == WebKit.PolicyDecisionType.NAVIGATION_ACTION:
-            uri = decision.get_navigation_action().get_request().get_uri()
+            nav = decision.get_navigation_action()
+            uri = nav.get_request().get_uri()
             if uri.split('#')[0] != UI_INDEX.as_uri():
-                if uri.startswith(('http://', 'https://', 'mailto:')):
-                    Gtk.UriLauncher.new(uri).launch(self, None, None, None)
+                # Only a link the user clicked goes out, and only once they
+                # say so: a note can't send the browser anywhere by itself.
+                if (uri.lower().startswith(('http://', 'https://', 'mailto:')) and nav.is_user_gesture()
+                        and nav.get_navigation_type() == WebKit.NavigationType.LINK_CLICKED):
+                    self.confirm_link(uri)
                 decision.ignore()
                 return True
         elif kind == WebKit.PolicyDecisionType.NEW_WINDOW_ACTION:
             decision.ignore()
             return True
         return False
+
+    def confirm_link(self, url):
+        shown = url if len(url) <= 300 else url[:300] + '…'
+        dialog = Gtk.AlertDialog(message='Open this link in your web browser?', detail=shown,
+                                 buttons=['Cancel', 'Open link'], cancel_button=0, default_button=0, modal=True)
+
+        def done(d, res):
+            try:
+                if d.choose_finish(res) == 1:
+                    Gtk.UriLauncher.new(url).launch(self, None, None, None)
+            except GLib.Error:
+                pass
+        dialog.choose(self, None, done)
 
     def on_context_menu(self, view, menu, hit):
         hide = {WebKit.ContextMenuAction.GO_BACK, WebKit.ContextMenuAction.GO_FORWARD,

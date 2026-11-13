@@ -2,7 +2,7 @@
 // file is escaped (raw HTML in a .md file is shown as text, never run), and
 // pictures aren't loaded, so reading a document never tells a server so;
 // a picture shows as its description. Links keep their address; clicking
-// one opens it in the browser (folio.py), never inside Folio.
+// one asks, then opens it in the browser (folio.py), never inside Folio.
 'use strict';
 
 const MD = (() => {
@@ -20,7 +20,9 @@ const MD = (() => {
   // before anything else so their contents stay literal.
   function inline(text) {
     const codes = [];
-    let s = text.replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_, _t, code) => {
+    // \u0000 and \u0001 mark the pieces cut out below; any already in the
+    // text would be taken for one of those, so they go.
+    let s = text.replace(/[\u0000\u0001]/g, '').replace(/(`+)([\s\S]*?[^`])\1(?!`)/g, (_, _t, code) => {
       codes.push(`<code>${esc(code.trim())}</code>`);
       return `\u0000${codes.length - 1}\u0000`;
     });
